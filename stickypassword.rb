@@ -72,6 +72,26 @@ def get_encrypted_token username, device_id, http
     response.parsed_response["SpcResponse"]["GetCrpTokenResponse"]["CrpToken"].from_64
 end
 
+def decrypt_aes_no_padding ciphertext, key, iv
+    c = OpenSSL::Cipher.new "aes-256-cbc"
+    c.decrypt
+    c.key = key
+    c.iv = iv
+    c.padding = 0
+    c.update(ciphertext) + c.final
+end
+
+def derive_token_key username, password
+    salt = Digest::MD5.digest username.downcase
+    OpenSSL::PKCS5.pbkdf2_hmac_sha1 password, salt, 5000, 32
+end
+
+def decrypt_token username, password, encrypted_token
+    key = derive_token_key username, password
+    decrypt_aes_no_padding encrypted_token, key, "\0" * 16
+end
+
+
 #
 # main
 #
@@ -80,3 +100,4 @@ config = YAML::load_file "config.yaml"
 
 http = Http.new
 encrypted_token = get_encrypted_token config["username"], config["device_id"], http
+token = decrypt_token config["username"], config["password"], encrypted_token
