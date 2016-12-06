@@ -1,3 +1,4 @@
 username: someone@gmail.com
 password: passw0rd
 device_id: 12345678-1234-1234-1234-123456789abc
+device_name: stickypassword-ruby

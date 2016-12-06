@@ -65,11 +65,33 @@ def request_headers device_id
     }
 end
 
+def request_headers_with_auth username, token, device_id
+    auth = "#{username}:#{token.to_64}".to_64
+    request_headers(device_id).merge({"Authorization" => "Basic #{auth}"})
+end
+
 def get_encrypted_token username, device_id, http
     response = http.post "#{API_URL}/GetCrpToken", {uaid: username}, request_headers(device_id)
 
     # TODO: Check for format errors
     response.parsed_response["SpcResponse"]["GetCrpTokenResponse"]["CrpToken"].from_64
+end
+
+def authorize_device username, token, device_id, device_name, http
+    response = http.post "#{API_URL}/DevAuth",
+                         {hid: device_name},
+                         request_headers_with_auth(username, token, device_id)
+
+    # TODO: Check for format errors
+    status = response.parsed_response["SpcResponse"]["Status"].to_i
+
+    # Looks like:
+    #  - 0 means the new device has been registered
+    #  - 4005 means all is good and the device is there already
+    # TODO: There's more logic in the executable. Check what it's for.
+    if status != 0 && status != 4005
+        raise "Device authorization failed"
+    end
 end
 
 def decrypt_aes_no_padding ciphertext, key, iv
@@ -91,7 +113,6 @@ def decrypt_token username, password, encrypted_token
     decrypt_aes_no_padding encrypted_token, key, "\0" * 16
 end
 
-
 #
 # main
 #
@@ -101,3 +122,4 @@ config = YAML::load_file "config.yaml"
 http = Http.new
 encrypted_token = get_encrypted_token config["username"], config["device_id"], http
 token = decrypt_token config["username"], config["password"], encrypted_token
+authorize_device config["username"], token, config["device_id"], config["device_name"], http
