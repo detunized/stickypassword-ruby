@@ -94,6 +94,22 @@ def authorize_device username, token, device_id, device_name, http
     end
 end
 
+def get_s3_token username, token, device_id, http
+    response = http.post "#{API_URL}/GetS3Token",
+                         {},
+                         request_headers_with_auth(username, token, device_id)
+
+    # TODO: Check for format errors
+    status = response.parsed_response["SpcResponse"]["Status"].to_i
+
+    if status != 0
+        raise "S3 token request failed"
+    end
+
+    # TODO: Check for format errors and convert to some custom data struct
+    response.parsed_response["SpcResponse"]["GetS3TokenResponse"]
+end
+
 def decrypt_aes_no_padding ciphertext, key, iv
     c = OpenSSL::Cipher.new "aes-256-cbc"
     c.decrypt
@@ -123,3 +139,5 @@ http = Http.new
 encrypted_token = get_encrypted_token config["username"], config["device_id"], http
 token = decrypt_token config["username"], config["password"], encrypted_token
 authorize_device config["username"], token, config["device_id"], config["device_name"], http
+s3_token = get_s3_token config["username"], token, config["device_id"], http
+ap s3_token
