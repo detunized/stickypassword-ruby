@@ -1,3 +1,3 @@
 .PHONY: default
 default:
-	@bundle exec ruby stickypassword.rb
+	@bundle exec ruby -rap stickypassword.rb
