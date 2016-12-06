@@ -2,8 +2,17 @@ GEM
   remote: https://rubygems.org/
   specs:
     awesome_print (1.7.0)
+    aws-sdk (2.6.32)
+      aws-sdk-resources (= 2.6.32)
+    aws-sdk-core (2.6.32)
+      aws-sigv4 (~> 1.0)
+      jmespath (~> 1.0)
+    aws-sdk-resources (2.6.32)
+      aws-sdk-core (= 2.6.32)
+    aws-sigv4 (1.0.0)
     httparty (0.14.0)
       multi_xml (>= 0.5.2)
+    jmespath (1.3.1)
     multi_xml (0.5.5)
 
 PLATFORMS
@@ -11,6 +20,7 @@ PLATFORMS
 
 DEPENDENCIES
   awesome_print
+  aws-sdk
   httparty
 
 BUNDLED WITH

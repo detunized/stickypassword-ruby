@@ -3,6 +3,7 @@
 require "yaml"
 require "base64"
 require "httparty"
+require "aws-sdk"
 
 API_URL = "https://spcb.stickypassword.com/SPCClient"
 
@@ -50,6 +51,10 @@ class String
         Base64.strict_decode64 self
     end
 end
+
+#
+# API
+#
 
 def request_headers device_id
     {
@@ -110,6 +115,40 @@ def get_s3_token username, token, device_id, http
     response.parsed_response["SpcResponse"]["GetS3TokenResponse"]
 end
 
+#
+# S3
+#
+
+def get_db_info s3, s3_token
+    response = s3.get_object bucket: s3_token["BucketName"], key: "#{s3_token['ObjectPrefix']}1/spc.info"
+    info = response.body.read
+
+    {
+        version: info[/VERSION\s+(\d+)/, 1],
+        milestone: info[/MILESTONE\s+(\d+)/, 1]
+    }
+end
+
+def get_db s3, s3_token, version
+    response = s3.get_object bucket: s3_token["BucketName"], key: "#{s3_token['ObjectPrefix']}1/db_#{version}.dmp"
+    Zlib::Inflate.inflate response.body.read
+end
+
+def get_latest_db s3_token
+    credentials = Aws::Credentials.new s3_token["AccessKeyId"],
+                                       s3_token["SecretAccessKey"],
+                                       s3_token["SessionToken"]
+    s3 = Aws::S3::Client.new region: "us-east-1",
+                             credentials: credentials
+
+    info = get_db_info s3, s3_token
+    get_db s3, s3_token, info[:version]
+end
+
+#
+# Crypto
+#
+
 def decrypt_aes_no_padding ciphertext, key, iv
     c = OpenSSL::Cipher.new "aes-256-cbc"
     c.decrypt
@@ -140,4 +179,4 @@ encrypted_token = get_encrypted_token config["username"], config["device_id"], h
 token = decrypt_token config["username"], config["password"], encrypted_token
 authorize_device config["username"], token, config["device_id"], config["device_name"], http
 s3_token = get_s3_token config["username"], token, config["device_id"], http
-ap s3_token
+db = get_latest_db s3_token
