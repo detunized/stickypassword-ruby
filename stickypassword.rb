@@ -212,7 +212,8 @@ def sql db, query
 end
 
 User = Struct.new :id, :salt, :verification
-Account = Struct.new :id, :name, :url, :notes
+Account = Struct.new :id, :name, :url, :notes, :credentials
+Credentials = Struct.new :username, :passowrd, :description
 
 def get_user_info db
     # "6400..." is "default\0" in UTF-16
@@ -232,14 +233,31 @@ def derive_and_verify_db_key password, user
     key
 end
 
+def get_credentials_for_account db, user, account_id, key
+    logins = sql db, "SELECT LOG.UDC_USERNAME, LOG.UD_PASSWORD, LOG.UDC_DESCRIPTION " +
+                         "FROM ACC_LOGIN LOG, ACC_LINK LINK " +
+                         "WHERE LINK.DATE_DELETED = 1 " +
+                             "AND LINK.USER_ID = #{user.id} " +
+                             "AND LINK.ENTRY_ID = #{account_id} " +
+                             "AND LOG.LOGIN_ID = LINK.LOGIN_ID " +
+                         "ORDER BY LINK.LOGIN_ID"
+    logins.map { |i|
+        Credentials.new decrypt_text_entry(i["UDC_USERNAME"], key),
+                        decrypt_text_entry(i["UD_PASSWORD"], key),
+                        decrypt_text_entry(i["UDC_DESCRIPTION"], key)
+    }
+end
+
 def get_accounts db, user, key
     # TODO: Why group type 2?
     accounts = sql db, "SELECT * FROM ACC_ACCOUNT WHERE DATE_DELETED = 1 AND USER_ID = #{user.id} AND GROUP_TYPE = 2 ORDER BY ENTRY_ID"
     accounts.map { |i|
-        Account.new i["ENTRY_ID"],
+        id = i["ENTRY_ID"]
+        Account.new id,
                     decrypt_text_entry(i["UDC_ENTRY_NAME"], key),
                     decrypt_text_entry(i["UDC_URL"], key),
-                    decrypt_text_entry(i["UD_COMMENT"], key)
+                    decrypt_text_entry(i["UD_COMMENT"], key),
+                    get_credentials_for_account(db, user, id, key)
     }
 end
 
