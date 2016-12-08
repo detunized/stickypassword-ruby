@@ -5,6 +5,7 @@ require "base64"
 require "httparty"
 require "aws-sdk"
 require "sqlite3"
+require "tempfile"
 
 API_URL = "https://spcb.stickypassword.com/SPCClient"
 
@@ -261,8 +262,6 @@ def get_accounts db, user, key
     }
 end
 
-# This must be an actual file. It doesn't seem to be possible to open a db from memory with
-# sqlite3 Ruby bindings. The VFS interface is not exposed.
 def parse_accounts filename, password
     SQLite3::Database.new filename do |db|
         user = get_user_info db
@@ -283,3 +282,13 @@ token = decrypt_token config["username"], config["password"], encrypted_token
 authorize_device config["username"], token, config["device_id"], config["device_name"], http
 s3_token = get_s3_token config["username"], token, config["device_id"], http
 db = get_latest_db s3_token
+
+# We need to save the database to an actual file on the disk.
+# It doesn't seem to be possible to open a db from memory with
+# sqlite3 Ruby bindings. The VFS interface is not exposed.
+file = Tempfile.new "stickypassword-ruby"
+file.write db
+file.close
+
+accounts = parse_accounts file.path, config["password"]
+ap accounts
