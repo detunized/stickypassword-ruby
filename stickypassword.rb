@@ -239,15 +239,21 @@ def get_user_info db
     User.new user["USER_ID"][0], user["KEY"][0], user["PASSWORD"][0]
 end
 
+def derive_and_verify_db_key password, user
+    key = derive_db_key password, user.salt
+
+    verification = encrypt_aes "VERIFY", key
+    raise "The master password is incorrect" if verification != user.verification
+
+    key
+end
+
 # This must be an actual file. It doesn't seem to be possible to open a db from memory with
 # sqlite3 Ruby bindings. The VFS interface is not exposed.
 def parse_accounts filename, password
     SQLite3::Database.new filename do |db|
         user = get_user_info db
-        key = derive_db_key password, user.salt
-
-        verification = encrypt_aes "VERIFY", key
-        raise "The master password is incorrect" if verification != user.verification
+        key = derive_and_verify_db_key password, user
     end
 end
 
