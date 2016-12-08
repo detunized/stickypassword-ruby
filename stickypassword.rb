@@ -245,6 +245,9 @@ def parse_accounts filename, password
     SQLite3::Database.new filename do |db|
         user = get_user_info db
         key = derive_db_key password, user.salt
+
+        verification = encrypt_aes "VERIFY", key
+        raise "The master password is incorrect" if verification != user.verification
     end
 end
 
