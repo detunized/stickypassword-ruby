@@ -225,16 +225,14 @@ def sql db, query
     Result.new db.execute2 query
 end
 
+User = Struct.new :id, :salt, :verification
+
 def get_user_info db
     # "6400..." is "default\0" in UTF-16
     user = sql db, "SELECT * FROM USER WHERE DATE_DELETED = 1 AND USERNAME = x'640065006600610075006c0074000000'"
     raise "The default user is not found in the database" if user.empty?
 
-    {
-        id: user["USER_ID"][0],
-        salt: user["KEY"][0],
-        verification: user["PASSWORD"][0],
-    }
+    User.new user["USER_ID"][0], user["KEY"][0], user["PASSWORD"][0]
 end
 
 # This must be an actual file. It doesn't seem to be possible to open a db from memory with
