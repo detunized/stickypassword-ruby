@@ -175,6 +175,12 @@ def decrypt_aes ciphertext, key
     c.update(ciphertext) + c.final
 end
 
+def decrypt_text_entry ciphertext, key
+    decrypt_aes(ciphertext, key)
+        .encode(Encoding::UTF_8, Encoding::UTF_16LE)
+        .chomp "\0"
+end
+
 def pbkdf_sha1 password, salt, iterations
     OpenSSL::PKCS5.pbkdf2_hmac_sha1 password, salt, iterations, 32
 end
@@ -226,14 +232,14 @@ def derive_and_verify_db_key password, user
     key
 end
 
-def get_accounts db, user
+def get_accounts db, user, key
     # TODO: Why group type 2?
     accounts = sql db, "SELECT * FROM ACC_ACCOUNT WHERE DATE_DELETED = 1 AND USER_ID = #{user.id} AND GROUP_TYPE = 2 ORDER BY ENTRY_ID"
     accounts.map { |i|
         Account.new i["ENTRY_ID"],
-                    i["UDC_ENTRY_NAME"],
-                    i["UDC_URL"],
-                    i["UD_COMMENT"]
+                    decrypt_text_entry(i["UDC_ENTRY_NAME"], key),
+                    decrypt_text_entry(i["UDC_URL"], key),
+                    decrypt_text_entry(i["UD_COMMENT"], key)
     }
 end
 
@@ -243,7 +249,7 @@ def parse_accounts filename, password
     SQLite3::Database.new filename do |db|
         user = get_user_info db
         key = derive_and_verify_db_key password, user
-        return get_accounts db, user
+        return get_accounts db, user, key
     end
 end
 
