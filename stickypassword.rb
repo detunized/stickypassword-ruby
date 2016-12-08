@@ -175,13 +175,17 @@ def decrypt_aes ciphertext, key
     c.update(ciphertext) + c.final
 end
 
+def pbkdf_sha1 password, salt, iterations
+    OpenSSL::PKCS5.pbkdf2_hmac_sha1 password, salt, iterations, 32
+end
+
 def derive_token_key username, password
     salt = Digest::MD5.digest username.downcase
-    OpenSSL::PKCS5.pbkdf2_hmac_sha1 password, salt, 5000, 32
+    pbkdf_sha1 password, salt, 5000
 end
 
 def derive_db_key password, salt
-    OpenSSL::PKCS5.pbkdf2_hmac_sha1 password, salt, 10000, 32
+    pbkdf_sha1 password, salt, 10000
 end
 
 def decrypt_token username, password, encrypted_token
@@ -240,6 +244,7 @@ end
 def parse_accounts filename, password
     SQLite3::Database.new filename do |db|
         user = get_user_info db
+        key = derive_db_key password, user.salt
     end
 end
 
