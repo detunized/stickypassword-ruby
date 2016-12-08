@@ -206,6 +206,7 @@ def sql db, query
 end
 
 User = Struct.new :id, :salt, :verification
+Account = Struct.new :id, :name, :url, :notes
 
 def get_user_info db
     # "6400..." is "default\0" in UTF-16
@@ -225,12 +226,24 @@ def derive_and_verify_db_key password, user
     key
 end
 
+def get_accounts db, user
+    # TODO: Why group type 2?
+    accounts = sql db, "SELECT * FROM ACC_ACCOUNT WHERE DATE_DELETED = 1 AND USER_ID = #{user.id} AND GROUP_TYPE = 2 ORDER BY ENTRY_ID"
+    accounts.map { |i|
+        Account.new i["ENTRY_ID"],
+                    i["UDC_ENTRY_NAME"],
+                    i["UDC_URL"],
+                    i["UD_COMMENT"]
+    }
+end
+
 # This must be an actual file. It doesn't seem to be possible to open a db from memory with
 # sqlite3 Ruby bindings. The VFS interface is not exposed.
 def parse_accounts filename, password
     SQLite3::Database.new filename do |db|
         user = get_user_info db
         key = derive_and_verify_db_key password, user
+        return get_accounts db, user
     end
 end
 
