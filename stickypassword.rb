@@ -4,6 +4,7 @@ require "yaml"
 require "base64"
 require "httparty"
 require "aws-sdk"
+require "sqlite3"
 
 API_URL = "https://spcb.stickypassword.com/SPCClient"
 
@@ -149,12 +150,28 @@ end
 # Crypto
 #
 
-def decrypt_aes_no_padding ciphertext, key, iv
+def decrypt_aes_no_padding ciphertext, key
     c = OpenSSL::Cipher.new "aes-256-cbc"
     c.decrypt
     c.key = key
-    c.iv = iv
+    c.iv = "\0" * 16
     c.padding = 0
+    c.update(ciphertext) + c.final
+end
+
+def encrypt_aes plaintext, key
+    c = OpenSSL::Cipher.new "aes-256-cbc"
+    c.encrypt
+    c.key = key
+    c.iv = "\0" * 16
+    c.update(plaintext) + c.final
+end
+
+def decrypt_aes ciphertext, key
+    c = OpenSSL::Cipher.new "aes-256-cbc"
+    c.decrypt
+    c.key = key
+    c.iv = "\0" * 16
     c.update(ciphertext) + c.final
 end
 
@@ -163,9 +180,69 @@ def derive_token_key username, password
     OpenSSL::PKCS5.pbkdf2_hmac_sha1 password, salt, 5000, 32
 end
 
+def derive_db_key password, salt
+    OpenSSL::PKCS5.pbkdf2_hmac_sha1 password, salt, 10000, 32
+end
+
 def decrypt_token username, password, encrypted_token
     key = derive_token_key username, password
-    decrypt_aes_no_padding encrypted_token, key, "\0" * 16
+    decrypt_aes_no_padding encrypted_token, key
+end
+
+#
+# sqlite
+#
+
+class Result
+    def initialize results
+        @keys = {}
+        results[0].each_with_index do |k, i|
+            @keys[k] = i
+        end
+
+        @rows = results[1..-1]
+    end
+
+    def size
+        @rows.size
+    end
+
+    def empty?
+        @rows.empty?
+    end
+
+    def keys
+        @keys.keys
+    end
+
+    def [] key
+        index = @keys[key]
+        size.times.map { |i| @rows[i][index] }
+    end
+end
+
+def sql db, query
+    Result.new db.execute2 query
+end
+
+def get_user_info db
+    # "6400..." is "default\0" in UTF-16
+    user = sql db, "SELECT * FROM USER WHERE DATE_DELETED = 1 AND USERNAME = x'640065006600610075006c0074000000'"
+    raise "The default user is not found in the database" if user.empty?
+
+    {
+        id: user["USER_ID"][0],
+        salt: user["KEY"][0],
+        verification: user["PASSWORD"][0],
+    }
+end
+
+# This must be an actual file. It doesn't seem to be possible to open a db from memory with
+# sqlite3 Ruby bindings. The VFS interface is not exposed.
+def parse_accounts filename, password
+    SQLite3::Database.new filename do |db|
+        user = get_user_info db
+    end
 end
 
 #
