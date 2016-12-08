@@ -197,46 +197,23 @@ end
 # sqlite
 #
 
-class Result
-    def initialize results
-        @keys = {}
-        results[0].each_with_index do |k, i|
-            @keys[k] = i
-        end
-
-        @rows = results[1..-1]
-    end
-
-    def size
-        @rows.size
-    end
-
-    def empty?
-        @rows.empty?
-    end
-
-    def keys
-        @keys.keys
-    end
-
-    def [] key
-        index = @keys[key]
-        size.times.map { |i| @rows[i][index] }
-    end
-end
-
 def sql db, query
-    Result.new db.execute2 query
+    columns, *rows = db.execute2 query
+
+    # Transform to an array of hashes.
+    # Not very efficient but we don't have that many entries anyway.
+    rows.map { |row| Hash[columns.zip row] }
 end
 
 User = Struct.new :id, :salt, :verification
 
 def get_user_info db
     # "6400..." is "default\0" in UTF-16
-    user = sql db, "SELECT * FROM USER WHERE DATE_DELETED = 1 AND USERNAME = x'640065006600610075006c0074000000'"
-    raise "The default user is not found in the database" if user.empty?
+    users = sql db, "SELECT * FROM USER WHERE DATE_DELETED = 1 AND USERNAME = x'640065006600610075006c0074000000'"
+    raise "The default user is not found in the database" if users.empty?
 
-    User.new user["USER_ID"][0], user["KEY"][0], user["PASSWORD"][0]
+    user = users[0]
+    User.new user["USER_ID"], user["KEY"], user["PASSWORD"]
 end
 
 def derive_and_verify_db_key password, user
