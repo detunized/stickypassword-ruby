@@ -218,7 +218,10 @@ Credentials = Struct.new :username, :passowrd, :description
 
 def get_user_info db
     # "6400..." is "default\0" in UTF-16
-    users = sql db, "SELECT * FROM USER WHERE DATE_DELETED = 1 AND USERNAME = x'640065006600610075006c0074000000'"
+    users = sql db, "select USER_ID, KEY, PASSWORD " +
+                    "from USER " +
+                    "where DATE_DELETED = 1 " +
+                        "and USERNAME = x'640065006600610075006c0074000000'"
     raise "The default user is not found in the database" if users.empty?
 
     user = users[0]
@@ -235,13 +238,13 @@ def derive_and_verify_db_key password, user
 end
 
 def get_credentials_for_account db, user, account_id, key
-    logins = sql db, "SELECT LOG.UDC_USERNAME, LOG.UD_PASSWORD, LOG.UDC_DESCRIPTION " +
-                         "FROM ACC_LOGIN LOG, ACC_LINK LINK " +
-                         "WHERE LINK.DATE_DELETED = 1 " +
-                             "AND LINK.USER_ID = #{user.id} " +
-                             "AND LINK.ENTRY_ID = #{account_id} " +
-                             "AND LOG.LOGIN_ID = LINK.LOGIN_ID " +
-                         "ORDER BY LINK.LOGIN_ID"
+    logins = sql db, "select LOG.UDC_USERNAME, LOG.UD_PASSWORD, LOG.UDC_DESCRIPTION " +
+                     "from ACC_LOGIN LOG, ACC_LINK LINK " +
+                     "where LINK.DATE_DELETED = 1 " +
+                         "and LINK.USER_ID = #{user.id} " +
+                         "and LINK.ENTRY_ID = #{account_id} " +
+                         "and LOG.LOGIN_ID = LINK.LOGIN_ID " +
+                     "order by LINK.LOGIN_ID"
     logins.map { |i|
         Credentials.new decrypt_text_entry(i["UDC_USERNAME"], key),
                         decrypt_text_entry(i["UD_PASSWORD"], key),
@@ -251,7 +254,12 @@ end
 
 def get_accounts db, user, key
     # TODO: Why group type 2?
-    accounts = sql db, "SELECT * FROM ACC_ACCOUNT WHERE DATE_DELETED = 1 AND USER_ID = #{user.id} AND GROUP_TYPE = 2 ORDER BY ENTRY_ID"
+    accounts = sql db, "select ENTRY_ID, UDC_ENTRY_NAME, UDC_URL, UD_COMMENT " +
+                       "from ACC_ACCOUNT " +
+                       "where DATE_DELETED = 1 " +
+                           "and USER_ID = #{user.id} " +
+                           "and GROUP_TYPE = 2 " +
+                       "order by ENTRY_ID"
     accounts.map { |i|
         id = i["ENTRY_ID"]
         Account.new id,
